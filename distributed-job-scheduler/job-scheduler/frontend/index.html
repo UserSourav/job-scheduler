@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scheduler // Control Room</title>
+<style>
+  :root{
+    --bg: #0b0e14;
+    --panel: #12161f;
+    --panel-2: #171c27;
+    --border: #232a38;
+    --text: #e6e9ef;
+    --muted: #7a8296;
+    --accent: #4fd1c5;
+    --success: #34d399;
+    --warning: #f5a623;
+    --danger: #f0554b;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:14px; line-height:1.5;
+  }
+  a{color:var(--accent); text-decoration:none;}
+  .app{display:flex; min-height:100vh;}
+
+  /* ---- Sidebar ---- */
+  .sidebar{
+    width:220px; flex-shrink:0; border-right:1px solid var(--border);
+    background:var(--panel); padding:20px 16px; display:flex; flex-direction:column; gap:24px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{
+    width:10px; height:10px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 8px var(--accent); animation:pulse 2s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .brand-name{font-family:var(--mono); font-size:13px; letter-spacing:.04em; color:var(--text);}
+  .nav{display:flex; flex-direction:column; gap:2px;}
+  .nav button{
+    all:unset; cursor:pointer; padding:9px 10px; border-radius:6px; color:var(--muted);
+    font-size:13px; display:flex; align-items:center; gap:8px;
+  }
+  .nav button:hover{background:var(--panel-2); color:var(--text);}
+  .nav button.active{background:var(--panel-2); color:var(--accent);}
+  .sidebar-foot{margin-top:auto; font-family:var(--mono); font-size:11px; color:var(--muted);}
+
+  /* ---- Main ---- */
+  .main{flex:1; padding:28px 32px; max-width:1200px;}
+  .topbar{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:22px;}
+  .topbar h1{font-size:18px; margin:0; font-weight:600;}
+  .topbar .sub{color:var(--muted); font-family:var(--mono); font-size:12px;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:24px;}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px;
+  }
+  .card .label{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+  .card .value{font-family:var(--mono); font-size:26px; margin-top:6px;}
+  .card .value.success{color:var(--success);}
+  .card .value.warning{color:var(--warning);}
+  .card .value.danger{color:var(--danger);}
+  .card .value.accent{color:var(--accent);}
+
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; margin-bottom:20px;}
+  .panel-head{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .panel-head h2{font-size:13px; margin:0; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600;}
+  .panel-body{padding:0;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:left; padding:10px 18px; color:var(--muted); font-weight:500; font-size:11px;
+    text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--border);
+  }
+  td{padding:10px 18px; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:12.5px;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--panel-2);}
+
+  .badge{
+    display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-family:var(--mono);
+    border:1px solid currentColor;
+  }
+  .badge.queued, .badge.scheduled{color:var(--muted);}
+  .badge.claimed, .badge.running{color:var(--accent);}
+  .badge.completed{color:var(--success);}
+  .badge.retrying{color:var(--warning);}
+  .badge.failed, .badge.dead_letter{color:var(--danger);}
+  .badge.cancelled{color:var(--muted);}
+
+  .pulse-strip{display:flex; align-items:flex-end; gap:2px; height:24px;}
+  .pulse-bar{width:4px; background:var(--accent); border-radius:1px; opacity:.85;}
+
+  input, select, button.btn{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-family:var(--sans); font-size:13px;
+  }
+  button.btn{cursor:pointer;}
+  button.btn:hover{border-color:var(--accent);}
+  button.btn.primary{background:var(--accent); color:#04211e; border-color:var(--accent); font-weight:600;}
+  button.btn.danger{color:var(--danger); border-color:var(--danger);}
+  .toolbar{display:flex; gap:8px; padding:14px 18px; flex-wrap:wrap;}
+
+  .empty{padding:40px 18px; text-align:center; color:var(--muted); font-family:var(--mono); font-size:12px;}
+
+  /* ---- Auth screen ---- */
+  .auth-wrap{flex:1; display:flex; align-items:center; justify-content:center; min-height:100vh;}
+  .auth-box{width:340px; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:28px;}
+  .auth-box h1{font-size:16px; margin:0 0 4px;}
+  .auth-box .sub{color:var(--muted); font-size:12px; margin-bottom:20px; font-family:var(--mono);}
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em;}
+  .field input{width:100%;}
+  .auth-toggle{margin-top:14px; font-size:12px; color:var(--muted); text-align:center;}
+  .error-msg{color:var(--danger); font-size:12px; margin-top:8px; font-family:var(--mono);}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div id="app" class="app"></div>
+
+<script>
+const API_BASE = window.SCHEDULER_API_BASE || "http://127.0.0.1:8000";
+
+const state = {
+  token: localStorage.getItem("sched_token") || null,
+  view: "overview",
+  orgs: [], projects: [], queues: [], jobs: [], workers: [], dlq: [], overview: null,
+  selectedProject: null,
+  authMode: "login",
+  authError: null,
+};
+
+async function api(path, opts = {}) {
+  const headers = opts.headers || {};
+  headers["Content-Type"] = "application/json";
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  const res = await fetch(API_BASE + path, { ...opts, headers });
+  if (res.status === 401) {
+    logout();
+    throw new Error("Unauthorized");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || res.statusText);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function logout() {
+  state.token = null;
+  localStorage.removeItem("sched_token");
+  render();
+}
+
+function statusBadge(s) {
+  return `<span class="badge ${s}">${s}</span>`;
+}
+
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return Math.floor(diff) + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return Math.floor(diff / 86400) + "d ago";
+}
+
+function pulseStrip(seed) {
+  // Deterministic-looking pseudo-random bars from a seed string, purely decorative
+  // "recent activity" indicator so each queue row has a distinct rhythm.
+  let bars = "";
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < 16; i++) {
+    h = (h * 1103515245 + 12345) >>> 0;
+    const height = 4 + (h % 20);
+    bars += `<div class="pulse-bar" style="height:${height}px"></div>`;
+  }
+  return `<div class="pulse-strip">${bars}</div>`;
+}
+
+// ---------------- Auth screen ----------------
+function renderAuth() {
+  const app = document.getElementById("app");
+  const isLogin = state.authMode === "login";
+  app.innerHTML = `
+    <div class="auth-wrap">
+      <div class="auth-box">
+        <h1>Job Scheduler</h1>
+        <div class="sub">// distributed queue control room</div>
+        <form id="auth-form">
+          ${!isLogin ? `<div class="field"><label>Full name</label><input name="full_name" required /></div>` : ""}
+          <div class="field"><label>Email</label><input name="email" type="email" required /></div>
+          <div class="field"><label>Password</label><input name="password" type="password" required /></div>
+          <button class="btn primary" type="submit" style="width:100%">${isLogin ? "Sign in" : "Create account"}</button>
+          ${state.authError ? `<div class="error-msg">${state.authError}</div>` : ""}
+        </form>
+        <div class="auth-toggle">
+          ${isLogin ? "No account yet?" : "Already have an account?"}
+          <a href="#" id="auth-toggle-link">${isLogin ? "Register" : "Sign in"}</a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("auth-toggle-link").onclick = (e) => {
+    e.preventDefault();
+    state.authMode = isLogin ? "register" : "login";
+    state.authError = null;
+    renderAuth();
+  };
+  document.getElementById("auth-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      if (isLogin) {
+        const tok = await api("/api/v1/auth/login", { method: "POST", body: JSON.stringify(payload) });
+        state.token = tok.access_token;
+        localStorage.setItem("sched_token", state.token);
+        await bootstrap();
+      } else {
+        await api("/api/v1/auth/register", { method: "POST", body: JSON.stringify(payload) });
+        state.authMode = "login";
+        state.authError = null;
+        renderAuth();
+      }
+    } catch (err) {
+      state.authError = err.message;
+      renderAuth();
+    }
+  };
+}
+
+// ---------------- Shell ----------------
+function renderShell() {
+  const app = document.getElementById("app");
+  const navItems = [
+    ["overview", "Overview"],
+    ["queues", "Queues"],
+    ["jobs", "Job Explorer"],
+    ["workers", "Workers"],
+    ["dlq", "Dead Letter"],
+  ];
+  app.innerHTML = `
+    <div class="sidebar">
+      <div class="brand"><div class="brand-mark"></div><div class="brand-name">SCHEDULER</div></div>
+      <div class="nav">
+        ${navItems.map(([id, label]) => `<button data-view="${id}" class="${state.view === id ? "active" : ""}">${label}</button>`).join("")}
+      </div>
+      <div class="sidebar-foot">
+        ${state.projects.length ? `Project: ${state.projects[0].name}` : "No project"}<br/>
+        <a href="#" id="logout-link">Sign out</a>
+      </div>
+    </div>
+    <div class="main" id="main"></div>
+  `;
+  app.querySelectorAll(".nav button").forEach((btn) => {
+    btn.onclick = () => { state.view = btn.dataset.view; renderMain(); };
+  });
+  document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); logout(); };
+  renderMain();
+}
+
+async function renderMain() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    if (state.view === "overview") await renderOverview(main);
+    else if (state.view === "queues") await renderQueues(main);
+    else if (state.view === "jobs") await renderJobs(main);
+    else if (state.view === "workers") await renderWorkers(main);
+    else if (state.view === "dlq") await renderDLQ(main);
+  } catch (err) {
+    main.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+  }
+}
+
+// ---------------- Views ----------------
+async function renderOverview(main) {
+  const ov = await api("/api/v1/dashboard/overview");
+  const jc = ov.job_counts, wc = ov.worker_counts;
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>System overview</h1>
+      <div class="sub">${ov.total_queues} queue(s) · ${ov.total_jobs} job(s) tracked</div>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="label">Queued</div><div class="value">${jc.queued}</div></div>
+      <div class="card"><div class="label">Running</div><div class="value accent">${jc.running + jc.claimed}</div></div>
+      <div class="card"><div class="label">Completed</div><div class="value success">${jc.completed}</div></div>
+      <div class="card"><div class="label">Retrying</div><div class="value warning">${jc.retrying}</div></div>
+      <div class="card"><div class="label">Dead letter</div><div class="value danger">${jc.dead_letter}</div></div>
+      <div class="card"><div class="label">Workers online</div><div class="value accent">${wc.online}</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Job status breakdown</h2></div>
+      <div class="panel-body">
+        <table>
+          <tr><th>Status</th><th>Count</th></tr>
+          ${Object.entries(jc).map(([k, v]) => `<tr><td>${statusBadge(k)}</td><td>${v}</td></tr>`).join("")}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function renderQueues(main) {
+  const queues = await api("/api/v1/queues");
+  const rows = await Promise.all(queues.map(async (q) => {
+    const stats = await api(`/api/v1/queues/${q.id}/stats`).catch(() => null);
+    return { q, stats };
+  }));
+  main.innerHTML = `
+    <div class="topbar"><h1>Queues</h1><div class="sub">${queues.length} queue(s)</div></div>
+    <div class="panel">
+      <div class="panel-body">
+        <table>
+          <tr><th>Name</th><th>Activity</th><th>Priority</th><th>Concurrency</th><th>State</th><th>In flight</th><th>Completed</th><th>DLQ</th><th></th></tr>
+          ${rows.map(({ q, stats }) => `
+            <tr>
+              <td style="font-family:var(--sans); color:var(--text)">${q.name}</td>
+              <td>${pulseStrip(q.id)}</td>
+              <td>${q.priority}</td>
+              <td>${q.concurrency_limit}</td>
+              <td>${q.is_paused ? '<span class="badge failed">paused</span>' : '<span class="badge completed">active</span>'}</td>
+              <td>${stats ? stats.claimed + stats.running : "—"}</td>
+              <td>${stats ? stats.completed : "—"}</td>
+              <td>${stats ? stats.dead_letter : "—"}</td>
+              <td><button class="btn" data-toggle="${q.id}" data-paused="${q.is_paused}">${q.is_paused ? "Resume" : "Pause"}</button></td>
+            </tr>
+          `).join("") || `<tr><td colspan="9" class="empty">No queues yet. Create one via the API.</td></tr>`}
+        </table>
+      </div>
+    </div>
+  `;
+  main.querySelectorAll("[data-toggle]").forEach((btn) => {
+    btn.onclick = async () => {
+      const id = btn.dataset.toggle;
+      const paused = btn.dataset.paused === "true";
+      await api(`/api/v1/queues/${id}/${paused ? "resume" : "pause"}`, { method: "POST" });
+      renderMain();
+    };
+  });
+}
+
+async function renderJobs(main) {
+  const jobs = await api("/api/v1/jobs?page=1&page_size=50");
+  main.innerHTML = `
+    <div class="topbar"><h1>Job explorer</h1><div class="sub">most recent 50</div></div>
+    <div class="panel">
+      <div class="panel-body">
+        <table>
+          <tr><th>Name</th><th>Type</th><th>Status</th><th>Attempts</th><th>Created</th><th>Last error</th><th></th></tr>
+          ${jobs.map((j) => `
+            <tr>
+              <td style="font-family:var(--sans); color:var(--text)">${j.name}</td>
+              <td>${j.job_type}</td>
+              <td>${statusBadge(j.status)}</td>
+              <td>${j.attempt_count}</td>
+              <td>${timeAgo(j.created_at)}</td>
+              <td style="color:var(--danger); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${j.last_error || "—"}</td>
+              <td>
+                ${["failed", "dead_letter", "cancelled"].includes(j.status) ? `<button class="btn" data-retry="${j.id}">Retry</button>` : ""}
+                ${["queued", "scheduled", "retrying"].includes(j.status) ? `<button class="btn danger" data-cancel="${j.id}">Cancel</button>` : ""}
+              </td>
+            </tr>
+          `).join("") || `<tr><td colspan="7" class="empty">No jobs yet.</td></tr>`}
+        </table>
+      </div>
+    </div>
+  `;
+  main.querySelectorAll("[data-retry]").forEach((btn) => {
+    btn.onclick = async () => { await api(`/api/v1/jobs/${btn.dataset.retry}/retry`, { method: "POST" }); renderMain(); };
+  });
+  main.querySelectorAll("[data-cancel]").forEach((btn) => {
+    btn.onclick = async () => { await api(`/api/v1/jobs/${btn.dataset.cancel}/cancel`, { method: "POST" }); renderMain(); };
+  });
+}
+
+async function renderWorkers(main) {
+  const workers = await api("/api/v1/workers");
+  main.innerHTML = `
+    <div class="topbar"><h1>Workers</h1><div class="sub">${workers.length} registered</div></div>
+    <div class="panel">
+      <div class="panel-body">
+        <table>
+          <tr><th>Host</th><th>Queues</th><th>Status</th><th>Active jobs</th><th>Concurrency</th><th>Last heartbeat</th></tr>
+          ${workers.map((w) => `
+            <tr>
+              <td style="font-family:var(--sans); color:var(--text)">${w.hostname}</td>
+              <td>${w.queue_names.join(", ")}</td>
+              <td>${statusBadge(w.status)}</td>
+              <td>${w.active_job_count}</td>
+              <td>${w.concurrency}</td>
+              <td>${timeAgo(w.last_heartbeat_at)}</td>
+            </tr>
+          `).join("") || `<tr><td colspan="6" class="empty">No workers have registered yet.</td></tr>`}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function renderDLQ(main) {
+  const jobs = await api("/api/v1/dashboard/dead-letter-queue");
+  main.innerHTML = `
+    <div class="topbar"><h1>Dead letter queue</h1><div class="sub">${jobs.length} permanently failed job(s)</div></div>
+    <div class="panel">
+      <div class="panel-body">
+        <table>
+          <tr><th>Name</th><th>Attempts</th><th>Failed</th><th>Reason</th><th></th></tr>
+          ${jobs.map((j) => `
+            <tr>
+              <td style="font-family:var(--sans); color:var(--text)">${j.name}</td>
+              <td>${j.attempt_count}</td>
+              <td>${timeAgo(j.completed_at)}</td>
+              <td style="color:var(--danger)">${j.last_error || "—"}</td>
+              <td><button class="btn" data-retry="${j.id}">Requeue</button></td>
+            </tr>
+          `).join("") || `<tr><td colspan="5" class="empty">Nothing in the dead letter queue. Good sign.</td></tr>`}
+        </table>
+      </div>
+    </div>
+  `;
+  main.querySelectorAll("[data-retry]").forEach((btn) => {
+    btn.onclick = async () => { await api(`/api/v1/jobs/${btn.dataset.retry}/retry`, { method: "POST" }); renderMain(); };
+  });
+}
+
+async function bootstrap() {
+  try {
+    state.orgs = await api("/api/v1/organizations");
+    state.projects = await api("/api/v1/projects");
+  } catch (e) { /* fine if empty */ }
+  renderShell();
+}
+
+function render() {
+  if (!state.token) renderAuth();
+  else bootstrap();
+}
+
+render();
+setInterval(() => { if (state.token) renderMain(); }, 8000);
+</script>
+</body>
+</html>
